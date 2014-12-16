@@ -33,7 +33,10 @@ function import_kioskpearsonjson_grades($items, $course, &$error) {
 	$resultStats->numItemsCreated = 0;
 
     $status = true;
-	
+
+    // Adding $coursecat for future use in order to determine the course aggregation method.
+    $coursecat = grade_category::fetch(array('parent'=>NULL, 'courseid'=>$course->id));
+
 	if (isset($items->items)){
 						
 		//cycle through each item looking for results
@@ -51,6 +54,14 @@ function import_kioskpearsonjson_grades($items, $course, &$error) {
 												'idnumber'=>$newItem->id,
 												'grademax'=>$newItem->pointsPossible
 												), false);
+
+				// If course category is weighted mean (10) make sure the grade is weighted.
+                                if($coursecat->aggregation == '10') {
+                                    $grade_item->aggregationcoef = '1';
+                                } else {
+                                    $grade_item->aggregationcoef = '0';
+                                }
+
 				$grade_item->insert('import');
 				$resultStats->numItemsCreated++;																
 			}
@@ -63,16 +74,17 @@ function import_kioskpearsonjson_grades($items, $course, &$error) {
 			}
 						
 			//5. Create new items grades
-			foreach ($newItem->results as $newImportGrade) {				   
+                        if (count($newItem->results) > 0) {
+			   foreach ($newItem->results as $newImportGrade) {				   
 					
 					//Get studentUser from regular moodle ID:
 					if (!$gradeUser = $DB->get_record('user', array('id' => $newImportGrade->userId))) {                        
-                        //increment for reporting
-                        $resultStats->numUnfoundUsers++;
+                                            //increment for reporting
+                                            $resultStats->numUnfoundUsers++;
                         
-                        $status = false;
-                        break 3;
-                    }
+                                            $status = false;
+                                            break 3;
+                                       }
 
 					//1. Check to see if grade exists, if not, create it... if it does, check other things					
 					$currentgrade = grade_grade::fetch(array('itemid'=>$grade_item->id, 'userid'=>$gradeUser->id));
@@ -103,7 +115,8 @@ function import_kioskpearsonjson_grades($items, $course, &$error) {
 						$currentgrade->update();
 						$resultStats->numGradesUpdated++;
 					}																			
-			}
+			    }
+                        }
 			
 			$grade_item->force_regrading();	
 		}		
@@ -115,4 +128,3 @@ function import_kioskpearsonjson_grades($items, $course, &$error) {
         return false;
     }
 }
-
